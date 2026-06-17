@@ -1,0 +1,18 @@
+{
+  "name": "PoseCam",
+  "short_name": "PoseCam",
+  "description": "Recreate any photo composition with camera overlay",
+  "start_url": "/posecam/",
+  "scope": "/posecam/",
+  "display": "standalone",
+  "background_color": "#f4f1ea",
+  "theme_color": "#f4f1ea",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
