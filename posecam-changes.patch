@@ -1,0 +1,383 @@
+diff --git a/src/components/camera/ControlsPanel.tsx b/src/components/camera/ControlsPanel.tsx
+index 1cc31b4..15bd02b 100644
+--- a/src/components/camera/ControlsPanel.tsx
++++ b/src/components/camera/ControlsPanel.tsx
+@@ -1,5 +1,5 @@
+ import React, { useState } from 'react'
+-import { Sliders, Grid3X3, Zap, Lock, Unlock, FlipHorizontal, RotateCcw, Timer, Layers3, FlipHorizontal2 } from 'lucide-react'
++import { Sliders, Grid3X3, Zap, Lock, Unlock, FlipHorizontal, RotateCcw, Timer, Layers3, FlipHorizontal2, Check } from 'lucide-react'
+ import { usePoseCamStore, GridMode, DigiFilter, TimerDuration, BurstCount } from '../../store/usePoseCamStore'
+ import { Slider } from '../ui/Slider'
+ 
+@@ -32,6 +32,7 @@ export function ControlsPanel() {
+     mirrorPreview, mirrorCapture, setMirrorPreview, setMirrorCapture,
+     timerDuration, setTimerDuration,
+     burstCount, setBurstCount, burstInterval, setBurstInterval,
++    saveOverlayInPhoto, setSaveOverlayInPhoto,
+   } = usePoseCamStore()
+ 
+   const [activeTab, setActiveTab] = useState<Tab>('overlay')
+@@ -214,6 +215,28 @@ export function ControlsPanel() {
+                 Preview mirroring flips your live view like an Android selfie camera. Turn on "Mirror saved photo" too if you want the captured shot to match what you saw, rather than the true unflipped camera frame.
+               </p>
+             </div>
++
++            {/* Save reference overlay — default OFF. Preview always shows the
++                overlay; this only controls whether it's baked into the saved file. */}
++            <div>
++              <p className="text-[10px] text-white/50 font-medium tracking-widest uppercase mb-2">
++                On capture
++              </p>
++              <button
++                onClick={() => setSaveOverlayInPhoto(!saveOverlayInPhoto)}
++                className="w-full flex items-center gap-2.5 py-2.5 px-3 rounded-lg bg-white/10 text-left"
++              >
++                <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-colors ${
++                  saveOverlayInPhoto ? 'bg-accent-400' : 'bg-white/15'
++                }`}>
++                  {saveOverlayInPhoto ? <Check size={11} className="text-white" /> : null}
++                </span>
++                <span className="text-xs text-white/80 font-medium">Save reference overlay in photo</span>
++              </button>
++              <p className="text-[10px] text-white/35 mt-1.5 leading-relaxed">
++                Off by default — your saved photo is the clean camera shot only, even though the overlay stays visible while you're framing. Turn this on if you want the overlay baked into the file itself. Either way, you can compare the result against your inspiration afterward in the Gallery.
++              </p>
++            </div>
+           </>
+         )}
+       </div>
+diff --git a/src/pages/GalleryPage.tsx b/src/pages/GalleryPage.tsx
+index 770bea6..1d0b507 100644
+--- a/src/pages/GalleryPage.tsx
++++ b/src/pages/GalleryPage.tsx
+@@ -1,5 +1,5 @@
+ import React, { useState, useMemo } from 'react'
+-import { Trash2, X, Download, Layers3, ChevronLeft, ChevronRight } from 'lucide-react'
++import { Trash2, X, Download, Layers3, ChevronLeft, ChevronRight, GalleryHorizontal } from 'lucide-react'
+ import { usePoseCamStore, CapturedPhoto } from '../store/usePoseCamStore'
+ 
+ function PhotoCard({ photo, burstCount, onDelete, onView }: {
+@@ -9,12 +9,19 @@ function PhotoCard({ photo, burstCount, onDelete, onView }: {
+     <div className="relative rounded-2xl overflow-hidden bg-gray-100 shadow-sm" style={{aspectRatio:'4/5'}}>
+       <img src={photo.dataUrl} alt="Captured" className="w-full h-full object-cover" onClick={onView} />
+       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+-      {burstCount && burstCount > 1 && (
+-        <div className="absolute top-2 left-2 glass-dark rounded-full px-2 py-0.5 flex items-center gap-1">
+-          <Layers3 size={9} className="text-accent-300" />
+-          <span className="text-white text-[9px] font-medium">{burstCount}</span>
+-        </div>
+-      )}
++      <div className="absolute top-2 left-2 flex gap-1">
++        {burstCount && burstCount > 1 && (
++          <div className="glass-dark rounded-full px-2 py-0.5 flex items-center gap-1">
++            <Layers3 size={9} className="text-accent-300" />
++            <span className="text-white text-[9px] font-medium">{burstCount}</span>
++          </div>
++        )}
++        {photo.inspirationUrl && (
++          <div className="glass-dark rounded-full px-2 py-0.5 flex items-center gap-1">
++            <GalleryHorizontal size={9} className="text-accent-300" />
++          </div>
++        )}
++      </div>
+       <div className="absolute bottom-0 left-0 right-0 p-2.5 flex items-end justify-between">
+         <span className="text-white/70 text-[9px]">
+           {new Date(photo.timestamp).toLocaleDateString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+@@ -27,7 +34,7 @@ function PhotoCard({ photo, burstCount, onDelete, onView }: {
+   )
+ }
+ 
+-interface Lightbox { photoId: string; view: 'result' | 'inspo' }
++interface Lightbox { photoId: string; view: 'result' | 'inspo' | 'compare' }
+ 
+ export function GalleryPage() {
+   const { photos, deletePhoto, setPage } = usePoseCamStore()
+@@ -90,7 +97,7 @@ export function GalleryPage() {
+               photo={photo}
+               burstCount={photo.burstGroup ? burstSiblings.get(photo.burstGroup)?.length : undefined}
+               onDelete={() => deletePhoto(photo.id)}
+-              onView={() => setLightbox({ photoId: photo.id, view: 'result' })}
++              onView={() => setLightbox({ photoId: photo.id, view: photo.inspirationUrl ? 'compare' : 'result' })}
+             />
+           ))}
+         </div>
+@@ -115,10 +122,18 @@ export function GalleryPage() {
+                   }`}
+                 >Inspiration</button>
+               )}
++              {activePhoto.inspirationUrl && (
++                <button
++                  onClick={() => setLightbox(l => l ? {...l, view:'compare'} : null)}
++                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
++                    lightbox.view === 'compare' ? 'bg-white text-black' : 'text-white/50'
++                  }`}
++                >Compare</button>
++              )}
+             </div>
+             <div className="flex gap-2">
+               <button
+-                onClick={() => handleDownload(lightbox.view === 'result' ? activePhoto.dataUrl : activePhoto.inspirationUrl!)}
++                onClick={() => handleDownload(lightbox.view === 'inspo' ? activePhoto.inspirationUrl! : activePhoto.dataUrl)}
+                 className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"
+               >
+                 <Download size={15} className="text-white" />
+@@ -133,26 +148,55 @@ export function GalleryPage() {
+           </div>
+ 
+           <div className="flex-1 flex items-center justify-center p-4 relative">
+-            {activeSiblings.length > 1 && lightbox.view === 'result' && (
+-              <button
+-                onClick={() => stepSibling(-1)}
+-                className="absolute left-2 w-9 h-9 rounded-full bg-white/10 flex items-center justify-center z-10"
+-              >
+-                <ChevronLeft size={18} className="text-white" />
+-              </button>
+-            )}
+-            <img
+-              src={lightbox.view === 'result' ? activePhoto.dataUrl : (activePhoto.inspirationUrl || activePhoto.dataUrl)}
+-              alt="View"
+-              className="max-w-full max-h-full object-contain rounded-2xl"
+-            />
+-            {activeSiblings.length > 1 && lightbox.view === 'result' && (
+-              <button
+-                onClick={() => stepSibling(1)}
+-                className="absolute right-2 w-9 h-9 rounded-full bg-white/10 flex items-center justify-center z-10"
+-              >
+-                <ChevronRight size={18} className="text-white" />
+-              </button>
++            {lightbox.view === 'compare' ? (
++              <div className="w-full h-full flex flex-col gap-3">
++                <div className="flex-1 grid grid-cols-2 gap-2">
++                  <div className="flex flex-col gap-1.5">
++                    <p className="text-white/40 text-[10px] font-medium text-center uppercase tracking-wide">Reference</p>
++                    <div className="flex-1 rounded-xl overflow-hidden bg-white/5">
++                      <img
++                        src={activePhoto.inspirationUrl!}
++                        alt="Reference"
++                        className="w-full h-full object-contain"
++                      />
++                    </div>
++                  </div>
++                  <div className="flex flex-col gap-1.5">
++                    <p className="text-white/40 text-[10px] font-medium text-center uppercase tracking-wide">Captured</p>
++                    <div className="flex-1 rounded-xl overflow-hidden bg-white/5">
++                      <img
++                        src={activePhoto.cleanDataUrl}
++                        alt="Captured"
++                        className="w-full h-full object-contain"
++                      />
++                    </div>
++                  </div>
++                </div>
++              </div>
++            ) : (
++              <>
++                {activeSiblings.length > 1 && lightbox.view === 'result' && (
++                  <button
++                    onClick={() => stepSibling(-1)}
++                    className="absolute left-2 w-9 h-9 rounded-full bg-white/10 flex items-center justify-center z-10"
++                  >
++                    <ChevronLeft size={18} className="text-white" />
++                  </button>
++                )}
++                <img
++                  src={lightbox.view === 'result' ? activePhoto.dataUrl : (activePhoto.inspirationUrl || activePhoto.dataUrl)}
++                  alt="View"
++                  className="max-w-full max-h-full object-contain rounded-2xl"
++                />
++                {activeSiblings.length > 1 && lightbox.view === 'result' && (
++                  <button
++                    onClick={() => stepSibling(1)}
++                    className="absolute right-2 w-9 h-9 rounded-full bg-white/10 flex items-center justify-center z-10"
++                  >
++                    <ChevronRight size={18} className="text-white" />
++                  </button>
++                )}
++              </>
+             )}
+           </div>
+ 
+@@ -171,11 +215,14 @@ export function GalleryPage() {
+                 <span className="text-white/40 text-[10px] ml-1">{siblingIndex + 1} of {activeSiblings.length} — burst</span>
+               </div>
+             )}
+-            {activePhoto.inspirationUrl && (
++            {activePhoto.inspirationUrl && lightbox.view !== 'compare' && (
+               <p className="text-white/40 text-xs">
+                 {lightbox.view === 'inspo' ? 'Inspiration reference' : 'Your captured shot'}
+               </p>
+             )}
++            {lightbox.view === 'compare' && (
++              <p className="text-white/40 text-xs">Side by side — how closely did it match?</p>
++            )}
+           </div>
+         </div>
+       )}
+diff --git a/src/pages/StudioPage.tsx b/src/pages/StudioPage.tsx
+index f7fc282..3d694e5 100644
+--- a/src/pages/StudioPage.tsx
++++ b/src/pages/StudioPage.tsx
+@@ -55,9 +55,9 @@ export function StudioPage() {
+     e.target.value = ''
+   }, [setOverlayImage, setCompositionHints])
+ 
+-  // Takes a single frame and saves it. mirrorCapture is read fresh from the
+-  // store each time rather than captured in a closure, since burst sequences
+-  // run over multiple seconds.
++  // Takes a single frame and saves it. mirrorCapture/saveOverlayInPhoto are
++  // read fresh from the store each time rather than captured in a closure,
++  // since burst sequences run over multiple seconds.
+   const takeSingleShot = useCallback((burstGroup?: string) => {
+     if (!videoRef.current) return
+     const state = usePoseCamStore.getState()
+@@ -71,7 +71,7 @@ export function StudioPage() {
+       return img
+     })() : null
+ 
+-    const dataUrl = captureFrame(
++    const { cleanDataUrl, compositedDataUrl } = captureFrame(
+       videoRef.current,
+       overlayImg,
+       state.overlay,
+@@ -80,12 +80,18 @@ export function StudioPage() {
+       state.mirrorPreview && state.mirrorCapture
+     )
+ 
++    // saveOverlayInPhoto OFF (default): the saved photo is camera-only.
++    // ON: the saved photo has the overlay baked in, matching old behavior.
++    // cleanDataUrl is always kept too, so Gallery can show Before/After
++    // regardless of this setting.
+     addPhoto({
+       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+-      dataUrl,
++      dataUrl: state.saveOverlayInPhoto ? compositedDataUrl : cleanDataUrl,
++      cleanDataUrl,
+       inspirationUrl: state.overlay.image,
+       timestamp: Date.now(),
+       burstGroup,
++      overlayBaked: state.saveOverlayInPhoto,
+     })
+   }, [videoRef, addPhoto])
+ 
+diff --git a/src/store/usePoseCamStore.ts b/src/store/usePoseCamStore.ts
+index 7646441..1e349cf 100644
+--- a/src/store/usePoseCamStore.ts
++++ b/src/store/usePoseCamStore.ts
+@@ -20,10 +20,17 @@ export interface OverlayState {
+ export interface CapturedPhoto {
+   id: string
+   dataUrl: string
++  /** Camera-only frame with no overlay composited in — always stored so the
++   *  Gallery can show a Before/After comparison regardless of whether the
++   *  overlay was baked into `dataUrl`. */
++  cleanDataUrl: string
+   inspirationUrl: string | null
+   timestamp: number
+   label?: string
+   burstGroup?: string
++  /** Whether the overlay was baked into dataUrl at capture time (mirrors
++   *  saveOverlayInPhoto at the moment this photo was taken). */
++  overlayBaked: boolean
+ }
+ 
+ export interface CompositionHint {
+@@ -69,6 +76,12 @@ interface PoseCamState {
+   isBursting: boolean
+   burstProgress: number // shots taken so far in current burst
+ 
++  // Overlay-in-capture toggle — OFF by default. When ON, the overlay is
++  // baked into the saved photo (old behavior). When OFF, only the clean
++  // camera frame is saved, but cleanDataUrl is always captured either way
++  // so Before/After comparison works regardless of this setting.
++  saveOverlayInPhoto: boolean
++
+   // Templates
+   templates: ShotTemplate[]
+   activeTemplateId: string | null
+@@ -101,6 +114,8 @@ interface PoseCamState {
+   setIsBursting: (v: boolean) => void
+   setBurstProgress: (n: number) => void
+ 
++  setSaveOverlayInPhoto: (v: boolean) => void
++
+   saveTemplate: (name: string, emoji: string) => void
+   applyTemplate: (id: string) => void
+   deleteTemplate: (id: string) => void
+@@ -150,6 +165,8 @@ export const usePoseCamStore = create<PoseCamState>((set, get) => ({
+   isBursting: false,
+   burstProgress: 0,
+ 
++  saveOverlayInPhoto: false, // OFF by default, per product decision
++
+   templates: loadTemplates(),
+   activeTemplateId: null,
+ 
+@@ -184,6 +201,8 @@ export const usePoseCamStore = create<PoseCamState>((set, get) => ({
+   setIsBursting: (isBursting) => set({ isBursting }),
+   setBurstProgress: (burstProgress) => set({ burstProgress }),
+ 
++  setSaveOverlayInPhoto: (saveOverlayInPhoto) => set({ saveOverlayInPhoto }),
++
+   saveTemplate: (name, emoji) => {
+     const s = get()
+     const template: ShotTemplate = {
+diff --git a/src/utils/canvasUtils.ts b/src/utils/canvasUtils.ts
+index dfb98c7..3350a77 100644
+--- a/src/utils/canvasUtils.ts
++++ b/src/utils/canvasUtils.ts
+@@ -50,6 +50,14 @@ export function applyDigiFilter(ctx: CanvasRenderingContext2D, w: number, h: num
+   ctx.putImageData(imageData, 0, 0)
+ }
+ 
++export interface CaptureResult {
++  /** Camera-only frame (with digicam filter applied, no overlay) — always produced. */
++  cleanDataUrl: string
++  /** Camera frame with the overlay composited in. Identical to cleanDataUrl
++   *  when there is no overlay image or its opacity is 0. */
++  compositedDataUrl: string
++}
++
+ export function captureFrame(
+   video: HTMLVideoElement,
+   overlayImage: HTMLImageElement | null,
+@@ -57,7 +65,7 @@ export function captureFrame(
+   filter: DigiFilter,
+   gridMode: string,
+   mirrorCapture: boolean = false
+-): string {
++): CaptureResult {
+   const canvas = document.createElement('canvas')
+   const vw = video.videoWidth || 1280
+   const vh = video.videoHeight || 720
+@@ -77,8 +85,17 @@ export function captureFrame(
+   // Apply filter
+   applyDigiFilter(ctx, vw, vh, filter)
+ 
+-  // Draw overlay (drawn after the mirror restore, so it stays correctly oriented
+-  // regardless of whether the underlying camera frame was flipped)
++  // Snapshot the clean frame (camera + filter, no overlay) before drawing
++  // the overlay on top — this is what Before/After comparison uses as
++  // "After", and what gets saved when the overlay-in-photo toggle is off.
++  const cleanDataUrl = canvas.toDataURL('image/jpeg', 0.92)
++
++  let compositedDataUrl = cleanDataUrl
++
++  // Draw overlay on top of the already-snapshotted clean frame, then take a
++  // second snapshot for the composited version. Drawn after the mirror
++  // restore, so it stays correctly oriented regardless of whether the
++  // underlying camera frame was flipped.
+   if (overlayImage && overlayState.opacity > 0) {
+     ctx.save()
+     ctx.globalAlpha = overlayState.opacity
+@@ -89,9 +106,10 @@ export function captureFrame(
+     ctx.scale(overlayState.flipH ? -overlayState.scale : overlayState.scale, overlayState.scale)
+     ctx.drawImage(overlayImage, -vw / 2, -vh / 2, vw, vh)
+     ctx.restore()
++    compositedDataUrl = canvas.toDataURL('image/jpeg', 0.92)
+   }
+ 
+-  return canvas.toDataURL('image/jpeg', 0.92)
++  return { cleanDataUrl, compositedDataUrl }
+ }
+ 
+ export function analyzeComposition(img: HTMLImageElement) {
