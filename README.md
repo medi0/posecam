@@ -13,22 +13,26 @@ PoseCam is a PWA that helps photographers, travelers, and content creators recre
 - **Composition Analysis** — AI estimates subject placement, horizon position, camera height & angle
 - **Grid Guides** — Rule of thirds, golden ratio, and symmetry overlays
 - **DigiCam Filters** — Canon IXUS, Sony Cyber-shot, CCD Warm, Y2K Flash aesthetics
-- **Gallery** — Save shots with side-by-side comparison to inspiration
+- **Self-Timer** — 3s / 5s / 10s countdown before the shutter fires
+- **Burst Mode** — Configurable shot count (1/3/5/8) and interval between shots, with a progress indicator
+- **Mirror Mode** — Flip the live preview like an Android front camera, with an independent toggle to also flip the saved photo
+- **Shot Templates** — Save your overlay, grid, filter, and mirror setup as a named template (e.g. "Waterfall Pose", "Café Window Shot") and reapply it later in one tap
+- **Gallery** — Save shots with side-by-side comparison to inspiration; burst shots are grouped with swipe navigation to pick the keeper
 - **PWA** — Installable on mobile, works offline
 
 ---
 
 ## Stack
 
-| Layer | Tech |
-|-------|------|
+| Layer     | Tech                  |
+| --------- | --------------------- |
 | Framework | React 18 + TypeScript |
-| Bundler | Vite |
-| Styling | Tailwind CSS |
-| State | Zustand |
-| Camera | MediaDevices API |
-| Image | Canvas API |
-| Deploy | GitHub Pages |
+| Bundler   | Vite                  |
+| Styling   | Tailwind CSS          |
+| State     | Zustand               |
+| Camera    | MediaDevices API      |
+| Image     | Canvas API            |
+| Deploy    | GitHub Pages          |
 
 ---
 
@@ -73,8 +77,10 @@ npm run deploy
    - Drag overlay to reposition; use sliders to adjust opacity/scale/rotation
    - Switch grids (⅓ thirds, φ golden, ⊕ symmetry)
    - Toggle DigiCam filter for nostalgic CCD look
-   - Tap shutter circle to capture
-3. **Gallery** — View, compare, and download shots
+   - Open the **Capture** tab to set a self-timer (3/5/10s), configure burst mode (shot count + interval), or enable mirror preview
+   - Tap the bookmark icon to save the current setup as a **Shot Template**, or apply one you saved earlier
+   - Tap shutter circle to capture (countdown and burst run automatically if enabled)
+3. **Gallery** — View, compare, and download shots; burst sequences are grouped together with arrows/dots to step through and pick the best one
 
 ---
 
@@ -84,20 +90,21 @@ npm run deploy
 posecam/
 ├── src/
 │   ├── components/
-│   │   ├── camera/       # ControlsPanel
-│   │   ├── composition/  # CompositionPanel
+│   │   ├── camera/       # ControlsPanel (overlay, grid, digicam, capture tabs)
+│   │   ├── composition/  # CompositionPanel, TemplatesPanel
 │   │   ├── overlay/      # GridOverlay, ImageOverlay
 │   │   └── ui/           # NavBar, Slider
 │   ├── hooks/
-│   │   └── useCamera.ts  # Camera stream management
+│   │   ├── useCamera.ts     # Camera stream management, front/back switch
+│   │   └── useCountdown.ts  # Self-timer countdown logic
 │   ├── pages/
 │   │   ├── HomePage.tsx
 │   │   ├── StudioPage.tsx
 │   │   └── GalleryPage.tsx
 │   ├── store/
-│   │   └── usePoseCamStore.ts  # Zustand global state
+│   │   └── usePoseCamStore.ts  # Zustand global state (overlay, mirror, timer, burst, templates)
 │   └── utils/
-│       └── canvasUtils.ts  # Filter application, frame capture, composition analysis
+│       └── canvasUtils.ts  # Filter application, frame capture (incl. mirror), composition analysis
 ├── public/
 └── dist/               # Build output
 ```
@@ -107,13 +114,16 @@ posecam/
 ## Roadmap
 
 - [ ] MediaPipe pose skeleton overlay with % match score
+- [ ] Camera Distance Indicator (needs subject/body detection — currently deferred, see note below)
+- [ ] Perspective Matching / tilt detection (same dependency as above)
+- [ ] Remote Photographer Mode — guide a friend's phone in real time (needs a lightweight realtime backend; deferred)
 - [ ] AR perspective alignment
 - [ ] Pinterest board import (multiple references)
-- [ ] Shot template system ("Nohkalikai viewpoint", "Shillong café aesthetic")
 - [ ] AI composition rating (0–100)
-- [ ] Friends Mode — remote guide another photographer
 - [ ] Travel Shot Planner — pre-trip shot lists
 - [ ] Color palette extraction from inspiration
+
+**Note on Distance Indicator and Perspective Matching:** both depend on detecting the subject's body in the _live_ camera feed, not just the inspiration photo. The composition analysis already in this build only samples brightness regions of the inspiration image, which isn't enough to estimate live framing. Doing this properly needs a body/pose detection model (e.g. MediaPipe Pose) running on the live feed, which is a meaningfully heavier addition — it pulls in a model bundle, needs lazy-loading so first paint isn't blocked, and runs continuously rather than once per shot. Worth scoping as its own pass.
 
 ---
 

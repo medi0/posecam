@@ -55,7 +55,8 @@ export function captureFrame(
   overlayImage: HTMLImageElement | null,
   overlayState: { opacity: number; scale: number; rotation: number; x: number; y: number; flipH: boolean },
   filter: DigiFilter,
-  gridMode: string
+  gridMode: string,
+  mirrorCapture: boolean = false
 ): string {
   const canvas = document.createElement('canvas')
   const vw = video.videoWidth || 1280
@@ -64,13 +65,20 @@ export function captureFrame(
   canvas.height = vh
   const ctx = canvas.getContext('2d')!
 
-  // Draw video
+  // Draw video (mirrored horizontally if requested, to match an Android-style selfie preview)
+  ctx.save()
+  if (mirrorCapture) {
+    ctx.translate(vw, 0)
+    ctx.scale(-1, 1)
+  }
   ctx.drawImage(video, 0, 0, vw, vh)
+  ctx.restore()
 
   // Apply filter
   applyDigiFilter(ctx, vw, vh, filter)
 
-  // Draw overlay
+  // Draw overlay (drawn after the mirror restore, so it stays correctly oriented
+  // regardless of whether the underlying camera frame was flipped)
   if (overlayImage && overlayState.opacity > 0) {
     ctx.save()
     ctx.globalAlpha = overlayState.opacity
